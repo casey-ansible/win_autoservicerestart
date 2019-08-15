@@ -1,0 +1,34 @@
+---
+- hosts: "{{ host }}"
+  gather_facts: no
+
+  vars:
+    services_to_ingore:
+      - MapsBroker
+      - sppsvc
+      - RemoteRegistry
+
+  tasks:
+  - name: get service list
+    win_shell: (get-service|?{ $_.Status -eq "Stopped" -and $_.StartType -eq "Automatic"})| foreach {$_.Name }
+    register: service_to_restart
+
+  - name: Debug
+    debug:
+      msg: "{{ item }}"
+    loop: "{{service_to_restart.stdout_lines}}"
+
+  - name: set services to restart
+    set_fact:
+      service_to_restart: "{{ service_to_restart.stdout_lines | difference(services_to_ingore) }}"
+
+  - name: Debug 2
+    debug:
+      msg: "{{ item }}"
+    loop: "{{ service_to_restart }}"
+
+  - name: restart service
+    win_service:
+      name: "{{ item }}"
+      state: restarted
+    with_items: "{{service_to_restart}}"
